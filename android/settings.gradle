@@ -1,0 +1,7 @@
+rootProject.name = 'bluesnap_sdk'
+//include ":bluesnap_sdk:bluesnap-android-int"
+//include ":bluesnap_sdk:bluesnap-android"
+
+
+// include ':bluesnap-android-int'
+// project(':bluesnap-android-int').projectDir = new File(settingsDir, './bluesnap-android-int')
