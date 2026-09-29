@@ -1,25 +1,19 @@
+## 0.1.0
 
-Prerequisites
-- Software:
-  - Flutter 3.22.3
-  - Dart SDK 3.4.4
+**Breaking (Android):** apps must set `minSdk` 29 or higher and build with JDK 17 or newer.
 
-Steps for BlueSnap SDK Integration
+* Android: bridge bluesnap-android v2.8.1 (was v2.5.2), adapting to its Kotlin API (`BlueSnapService.instance`, `TaxCalculator` interface, non-null `setup()` parameters, `getSdkResult()`).
+* Android: raise the plugin `minSdk` from 24 to 29, because bluesnap-android 2.8.1 requires it. Apps below 29, including Flutter's default of 24, fail with `Manifest merger failed : uses-sdk:minSdkVersion 24 cannot be smaller than version 29 declared in library [:bluesnap_sdk]`.
+* Android: compile for Java 17, `compileSdk`/`targetSdk` 36, and declare the `namespace` required by Android Gradle Plugin 8+.
+* Android: ship consumer R8 rules so release builds compile and the checkout result maps keep their keys.
+* Android: `merchantStoreCurrency` defaults to USD when omitted, as in the native SDK.
+* Android: removed debug logging.
+* `pubspec.yaml`: the `flutter` constraint is now `>=3.10.6`, the lowest version the Dart SDK constraint (`>=3.0.6`) already allowed. Android builds also need the toolchain listed under README, "Android requirements".
+* Unchanged: apps still need the JitPack and Cardinal Commerce Maven repositories and `tools:replace="android:label"` (now documented in README, "Android requirements").
+* Example: migrate to the Flutter 3.47 Android template (AGP 9.1.0, Gradle 9.3.1, Kotlin 2.4.0, JDK 17). Upgrade fluttertoast to ^10, which requires Flutter 3.44 / Dart 3.12 or later. Add an integration smoke test in `example/integration_test`.
+* iOS: still bridges BluesnapSDK 2.0.5 (iOS 13.0). Removed debug logging from `checkoutCard`.
+* Example (iOS): adopt the UIScene lifecycle, which Flutter requires on iOS 27, and apply Flutter 3.47's iOS project migrations (iOS 15.0 minimum; Swift Package Manager for the plugins that support it). The Flutter view stays inside a `UINavigationController`, now set up in `Main.storyboard`. Replace the placeholder native unit test with XCTests for the plugin's method handling. README documents the iOS requirements, and `example/integration_test/README.md` explains how to run the iOS tests.
 
-1. Listen to `onGenerateToken` and Create a Request to the Server:
-   - Set up a listener for the BlueSnap SDK's `onGenerateToken` event.
-   - This event triggers when a token needs to be generated for a transaction.
+## 0.0.2
 
-2. Connect to the Server and Finalize Token:
-   - Within the `onGenerateToken` callback, send a request to your server to generate a BlueSnap payment token.
-   - Once the token is returned from the server, call `finalizeToken` on the BlueSnap SDK to complete the tokenization.
-
-3. Initialize BlueSnap SDK:
-   - Call `initBluesnap` with necessary parameters like `bsToken`, `initKount`, and `merchantStoreCurrency` to initialize the SDK.
-
-4. Set SDK Parameters Before Checkout:
-   - Use `setSDKRequest` to configure the SDK with the transaction details, including amount, currency, and 3DS activation.
-
-5. Start Checkout:
-   - Native UI: Use the `showCheckout` method to initiate the checkout process using the native BlueSnap UI.
-   - Flutter Custom UI: Use the `checkoutCard` method to process the payment within your custom Flutter UI.
+* Bridges bluesnap-android v2.5.2 (Android minSdk 24) and BluesnapSDK (iOS) 2.0.5 (iOS 13.0).

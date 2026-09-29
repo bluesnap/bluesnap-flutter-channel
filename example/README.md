@@ -13,8 +13,9 @@ Features
 Prerequisites
 
 - Software:
-  - Flutter 3.22.3
-  - Dart SDK 3.4.4
+  - Flutter 3.44 or later (tested with Flutter 3.47.5 / Dart 3.13.4)
+  - JDK 17
+  - Android API 29+ / iOS 15.0+
 - Accounts:
   - BlueSnap account
 - Credentials:
@@ -24,7 +25,7 @@ Installation
 
 1. Clone the Repository:
 
-   git clone https://github.com/intrinisec/bluesnap-sdk-flutter
+   git clone https://github.com/bluesnap/bluesnap-flutter-channel
    cd example
 
 2. Install Dependencies:

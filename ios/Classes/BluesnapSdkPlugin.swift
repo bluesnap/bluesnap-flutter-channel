@@ -488,7 +488,6 @@ public class BluesnapSdkPlugin: NSObject, FlutterPlugin {
                          result: @escaping FlutterResult
        ) -> Void {
            var checkoutProps = DataConverter.toCheckoutCardProps(dict: props)
-           NSLog("checkoutCard start for card \(checkoutProps.cardNumber)")
           if let request = self.sdkre {
                request.shopperConfiguration.billingDetails?.name = checkoutProps.name
                request.shopperConfiguration.billingDetails?.zip = checkoutProps.billingZip

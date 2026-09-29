@@ -84,37 +84,52 @@ class _MyAppState extends State<MyApp> {
   }
 
   ///Create token to payment
-  void getGenerateToken(Map<String, dynamic> data) async {
-    String urlStr =
-        'https://sandbox.bluesnap.com/services/2/payment-fields-tokens';
+  Future<void> getGenerateToken(Map<String, dynamic> data) async {
+    try {
+      String urlStr =
+          'https://sandbox.bluesnap.com/services/2/payment-fields-tokens';
 
-    final shopperID = data['shopperID'];
-    if (shopperID != null) {
-      urlStr += '?shopperId=$shopperID';
-    }
+      final shopperID = data['shopperID'];
+      if (shopperID != null) {
+        urlStr += '?shopperId=$shopperID';
+      }
 
-    final credentials = await readCredentials();
+      final credentials = await readCredentials();
 
-    final credentialBase64 =
-        stringToBase64('${credentials['username']}:${credentials['password']}');
+      final credentialBase64 = stringToBase64(
+          '${credentials['username']}:${credentials['password']}');
 
-    // _dio.options.headers = {
-    //   'Content-Type': 'text/xml',
-    //   'Authorization': 'Basic $credentialBase64',
-    // };
-    final response = await widget.apiService.post(urlStr,
-        data: '',
-        options: Options(headers: {
-          'Content-Type': 'text/xml',
-          'Authorization': 'Basic $credentialBase64',
-        }));
+      // _dio.options.headers = {
+      //   'Content-Type': 'text/xml',
+      //   'Authorization': 'Basic $credentialBase64',
+      // };
+      final response = await widget.apiService.post(urlStr,
+          data: '',
+          options: Options(headers: {
+            'Content-Type': 'text/xml',
+            'Authorization': 'Basic $credentialBase64',
+          }));
 
-    final location = response.headers['location'];
+      final location = response.headers['location'];
 
-    if (location != null) {
-      final token = location.first.split('/').last;
+      if (location != null) {
+        final token = location.first.split('/').last;
 
-      bluesnapSdkPlugin.finalizeToken(token);
+        bluesnapSdkPlugin.finalizeToken(token);
+      }
+    } catch (e) {
+      // Without sandbox credentials the token request fails (401 or offline).
+      // The native SDK keeps waiting for a token, so initBluesnap does not
+      // return: close the loading indicator here and report the error.
+      EasyLoading.dismiss();
+      Fluttertoast.showToast(
+        msg: 'token error: $e',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
     }
   }
 

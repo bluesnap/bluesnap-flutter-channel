@@ -5,6 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bluesnap_sdk/bluesnap_sdk.dart';
@@ -12,6 +13,7 @@ import 'package:bluesnap_sdk_example/service/api_serivce.dart';
 import 'package:bluesnap_sdk_example/service/asset_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bluesnap_sdk_example/main.dart';
@@ -33,10 +35,10 @@ void main() {
   final mockApiService = MockApiService();
 
   final result = <String, dynamic>{"checkout": "124", "": ""};
-  final PublishSubject<Map<String, dynamic>> publishGenerateTokenSubject =
-      PublishSubject<Map<String, dynamic>>();
+  late PublishSubject<Map<String, dynamic>> publishGenerateTokenSubject;
 
   setUp(() {
+    publishGenerateTokenSubject = PublishSubject<Map<String, dynamic>>();
     when(mockBluesnapSdk.initBluesnap(
       bsToken: 'bsToken',
       initKount: true,
@@ -187,5 +189,49 @@ void main() {
 
     expect(find.text(json.encode(result)),
         findsOneWidget); // Assuming the initial text is 'Initial Text'
+  });
+
+  testWidgets('a failed token request closes the loading indicator',
+      (WidgetTester tester) async {
+    // The mocks are shared: forget the calls made by the tests above.
+    clearInteractions(mockBluesnapSdk);
+    // Like the native plugin when no token arrives: initBluesnap never returns.
+    when(mockBluesnapSdk.initBluesnap(
+      bsToken: 'bsToken',
+      initKount: true,
+      fraudSessionId: '',
+      applePayMerchantIdentifier: 'merchant.com.example.bluesnap',
+      merchantStoreCurrency: 'USD',
+    )).thenAnswer(
+      (realInvocation) {
+        publishGenerateTokenSubject.sink.add({});
+        return Completer<void>().future;
+      },
+    );
+    // Without sandbox credentials the token request is rejected.
+    when(mockApiService.post(
+      any,
+      data: anyNamed("data"),
+      cancelToken: anyNamed("cancelToken"),
+      onReceiveProgress: anyNamed("onReceiveProgress"),
+      onSendProgress: anyNamed("onSendProgress"),
+      options: anyNamed("options"),
+      queryParameters: anyNamed("queryParameters"),
+    )).thenAnswer(
+      (realInvocation) => Future.error(DioException(
+        requestOptions: RequestOptions(),
+        response: Response(requestOptions: RequestOptions(), statusCode: 401),
+      )),
+    );
+
+    await tester.pumpWidget(MyApp(
+      bluesnapSdkPlugin: mockBluesnapSdk,
+      assetService: mockAssetService,
+      apiService: mockApiService,
+    ));
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(EasyLoading.isShow, isFalse);
+    verifyNever(mockBluesnapSdk.finalizeToken(any));
   });
 }

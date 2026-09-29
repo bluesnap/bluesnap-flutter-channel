@@ -13,6 +13,7 @@ import com.bluesnap.androidapi.http.BlueSnapHTTPResponse
 import com.bluesnap.androidapi.models.BillingContactInfo
 import com.bluesnap.androidapi.models.CreditCard
 import com.bluesnap.androidapi.models.CreditCardInfo
+import com.bluesnap.androidapi.models.PriceDetails
 import com.bluesnap.androidapi.models.PurchaseDetails
 import com.bluesnap.androidapi.models.SdkRequest
 import com.bluesnap.androidapi.models.SdkRequestBase
@@ -88,7 +89,7 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
         this.tokenGenerationLock = AwaitLock()
         this.awaitLockScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 //    reactContext?.addActivityEventListener(mActivityEventListener)
-        bluesnapService = BlueSnapService.getInstance()
+        bluesnapService = BlueSnapService.instance
     }
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -219,7 +220,8 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
         result: Result,
     ) {
         generateAndSetBsToken() { token, error ->
-            Log.i(TAG, "generateAndSetBsToken $token $error")
+            // Do not include the token in log messages.
+            Log.i(TAG, "generateAndSetBsToken received=${!token.isNullOrEmpty()} error=$error")
 
             // create the interface for activating the token creation from server
             tokenProvider = TokenProvider { tokenServiceCallback ->
@@ -230,7 +232,7 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
                 }
             }
 
-            if (error == null) {
+            if (error == null && token != null) {
                 //final String merchantStoreCurrency = (null == currency || null == currency.getCurrencyCode()) ? "USD" : currency.getCurrencyCode()
                 activity?.let {
 
@@ -238,7 +240,7 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
                         bluesnapService?.setup(
                             token,
                             tokenProvider,
-                            merchantStoreCurrency,
+                            merchantStoreCurrency ?: SupportedPaymentMethods.USD,
                             it,
                             object : BluesnapServiceCallback {
                                 override fun onSuccess() {
@@ -309,7 +311,7 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
         awaitLockScope.launch {
             // This will run after `finalizeToken` was called.
             val result = tokenGenerationLock?.awaitLock() as String?
-            Log.i(TAG, "tokenGeneration  Lockker $result")
+            Log.i(TAG, "tokenGeneration lock released, token received=${!result.isNullOrEmpty()}")
             merchantToken = result
             if (result.isNullOrEmpty()) {
                 completion(null, "Unknown")
@@ -343,8 +345,10 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
 
         //FIXME: Android not support set `taxAmount` in constructor for now
         this.sdkRequest?.taxCalculator =
-            TaxCalculator { shippingCountry, shippingState, priceDetails ->
-                priceDetails.taxAmount = taxAmount
+            object : TaxCalculator {
+                override fun updateTax(shippingCountry: String?, shippingState: String?, priceDetails: PriceDetails?) {
+                    priceDetails?.taxAmount = taxAmount
+                }
             }
         result.success(null)
     }
@@ -376,15 +380,18 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
 
         // Set special tax policy: non-US pay no tax MA pays 10%, other US states pay 5%
         currentSdkRequest.taxCalculator =
-            TaxCalculator { shippingCountry, shippingState, priceDetails ->
-                if ("us".equals(shippingCountry, ignoreCase = true)) {
-                    var taxRate = 0.05
-                    if ("ma".equals(shippingState, ignoreCase = true)) {
-                        taxRate = 0.1
+            object : TaxCalculator {
+                override fun updateTax(shippingCountry: String?, shippingState: String?, priceDetails: PriceDetails?) {
+                    if (priceDetails == null) return
+                    if ("us".equals(shippingCountry, ignoreCase = true)) {
+                        var taxRate = 0.05
+                        if ("ma".equals(shippingState, ignoreCase = true)) {
+                            taxRate = 0.1
+                        }
+                        priceDetails.taxAmount = priceDetails.subtotalAmount * taxRate
+                    } else {
+                        priceDetails.taxAmount = 0.0
                     }
-                    priceDetails.taxAmount = priceDetails.subtotalAmount * taxRate
-                } else {
-                    priceDetails.taxAmount = 0.0
                 }
             }
 
@@ -574,7 +581,7 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
         try {
             val Last4: String
             val ccType: String?
-            val sdkResult = BlueSnapService.getInstance().sdkResult
+            val sdkResult = BlueSnapService.instance.getSdkResult()
             if (shopper.newCreditCardInfo!!.creditCard.isNewCreditCard) {
                 // New Card
                 val jsonObject = JSONObject(response.responseString)
@@ -583,15 +590,15 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
                 Log.d(TAG, "tokenization of new credit card")
             } else {
                 // Reused Card
-                Last4 = shopper.newCreditCardInfo!!.creditCard.cardLastFourDigits
+                Last4 = shopper.newCreditCardInfo!!.creditCard.cardLastFourDigits.orEmpty()
                 ccType = shopper.newCreditCardInfo!!.creditCard.cardType
                 Log.d(TAG, "tokenization of previous used credit card")
             }
             sdkResult.billingContactInfo = shopper.newCreditCardInfo!!.billingContactInfo
             if (sdkRequest!!.shopperCheckoutRequirements.isShippingRequired) sdkResult.shippingContactInfo =
                 shopper.shippingContactInfo
-            sdkResult.kountSessionId = KountService.getInstance().kountSessionId
-            sdkResult.token = BlueSnapService.getInstance().blueSnapToken.merchantToken
+            sdkResult.kountSessionId = KountService.instance.kountSessionId
+            sdkResult.token = BlueSnapService.instance.blueSnapToken?.merchantToken
             // update last4 from server result
             sdkResult.last4Digits = Last4
             // update card type from server result
@@ -626,7 +633,8 @@ open class BluesnapSdkPlugin : FlutterPlugin, MethodCallHandler,
         result: Result
     ) {
         val checkoutProps = DataConverter.toCheckoutCardProps(props)
-        Log.i(TAG, "checkoutCard start for card ${checkoutProps.cardNumber}")
+        // Do not include payment data in log messages.
+        Log.i(TAG, "checkoutCard start")
         val shopper: Shopper? = bluesnapService?.getsDKConfiguration()?.shopper
 
         if (shopper != null) {

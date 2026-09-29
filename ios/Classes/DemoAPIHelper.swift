@@ -1,6 +1,6 @@
 //
 //  DemoAPIHelper.swift
-//  bluesnap-sdk-react-native
+//  bluesnap_sdk
 //
 //  Created by oz on 10/07/2023.
 //
